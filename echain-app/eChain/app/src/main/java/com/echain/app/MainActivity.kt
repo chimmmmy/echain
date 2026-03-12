@@ -15,6 +15,8 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import java.util.UUID
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
 class MainActivity : AppCompatActivity() {
 
@@ -25,6 +27,10 @@ class MainActivity : AppCompatActivity() {
     private var titleCharacteristic: BluetoothGattCharacteristic? = null
     private var artistCharacteristic: BluetoothGattCharacteristic? = null
     private var albumCharacteristic: BluetoothGattCharacteristic? = null
+
+    private var imageCharacteristic: BluetoothGattCharacteristic? = null
+
+    private val IMAGE_UUID = UUID.fromString("12345678-1234-1234-1234-123456789004")
 
     private val SERVICE_UUID = UUID.fromString("12345678-1234-1234-1234-123456789abc")
     private val TITLE_UUID   = UUID.fromString("12345678-1234-1234-1234-123456789001")
@@ -65,9 +71,14 @@ class MainActivity : AppCompatActivity() {
             titleCharacteristic  = service?.getCharacteristic(TITLE_UUID)
             artistCharacteristic = service?.getCharacteristic(ARTIST_UUID)
             albumCharacteristic  = service?.getCharacteristic(ALBUM_UUID)
+            imageCharacteristic = service?.getCharacteristic(IMAGE_UUID)
             runOnUiThread { statusLabel.text = "Ready! Sending media info..." }
             this@MainActivity.sendMediaInfo()
             MediaListenerService.onMediaChanged = { this@MainActivity.sendMediaInfo() }
+            runOnUiThread {
+                statusLabel.text = "Ready! Sending media info..."
+                findViewById<Button>(R.id.imageButton).isEnabled = true
+            }
         }
     }
 
@@ -77,6 +88,8 @@ class MainActivity : AppCompatActivity() {
 
         statusLabel   = findViewById(R.id.statusLabel)
         connectButton = findViewById(R.id.connectButton)
+        val imageButton = findViewById<Button>(R.id.imageButton)
+        imageButton.setOnClickListener { pickImage() }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             ActivityCompat.requestPermissions(this, arrayOf(
@@ -123,6 +136,71 @@ class MainActivity : AppCompatActivity() {
         writeChar(titleCharacteristic,  MediaListenerService.songTitle)
         writeChar(artistCharacteristic, MediaListenerService.artistName)
         writeChar(albumCharacteristic,  MediaListenerService.albumName)
+    }
+
+    private fun pickImage() {
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent, 100)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 100 && resultCode == RESULT_OK) {
+            // Check if actually connected first
+            if (bluetoothGatt == null || imageCharacteristic == null) {
+                statusLabel.text = "Cannot send: Not connected to echain"
+                return
+            }
+            val uri = data?.data ?: return
+            val stream = contentResolver.openInputStream(uri) ?: return
+            val original = BitmapFactory.decodeStream(stream)
+
+            // Resize to 296x128
+            val scaled = Bitmap.createScaledBitmap(original, 296, 128, true)
+
+            // Convert to 1-bit black and white
+            val buf = ByteArray(4736) // 296*128/8
+            for (py in 0 until 128) {
+                for (px in 0 until 296) {
+                    val pixel = scaled.getPixel(px, py)
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    val gray = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+                    val black = gray < 128
+                    if (black) {
+                        val byteIdx = py * (296 / 8) + (px / 8)
+                        val bitIdx  = 7 - (px % 8)
+                        buf[byteIdx] = (buf[byteIdx].toInt() or (1 shl bitIdx)).toByte()
+                    }
+                }
+            }
+
+            // Send over BLE in 512 byte chunks
+            Thread {
+                var offset = 0
+                while (offset < buf.size) {
+                    val chunkSize = minOf(512, buf.size - offset)
+                    val chunk = buf.copyOfRange(offset, offset + chunkSize)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        bluetoothGatt?.writeCharacteristic(
+                            imageCharacteristic!!,
+                            chunk,
+                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        imageCharacteristic!!.value = chunk
+                        @Suppress("DEPRECATION")
+                        bluetoothGatt?.writeCharacteristic(imageCharacteristic!!)
+                    }
+                    offset += chunkSize
+                    Thread.sleep(200) // wait between chunks
+                }
+                runOnUiThread { statusLabel.text = "Sleep image sent!" }
+            }.start()
+        }
     }
 
     override fun onDestroy() {
