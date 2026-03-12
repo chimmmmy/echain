@@ -18,11 +18,18 @@ a smart keychain with an e ink display, powered by seed studio nrf52840
 
 
 
-# current state of the project
+# current capabilities (untested)
 
-software is complete! it is untested.
-currently working on completing v3 of the stl. 
-i have rev 0.1 boards, but they do not have a seeed or epaper breakout board.
-currently have 10 of them.
-500mah battery has been ordered and is on the way.
-rev 0.0's seeed xiao finally died.
+* show a basic landscape display
+
+* connect to an android phone via bluetooth
+
+* change off screen via bluetooth
+
+* show music currently being played via bluetooth
+
+* interactable via 2 buttons
+
+* able to enter deep sleep and exit deep sleep
+
+
