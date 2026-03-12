@@ -33,11 +33,5 @@ a smart keychain with an e ink display, powered by seed studio nrf52840
 * able to enter deep sleep and exit deep sleep
 
 
-# currently working on
 
-* final cad
-
-* adding interactions to pet in software
-
-* getting at least 3 test samples
 
