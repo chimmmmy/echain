@@ -20,5 +20,9 @@ a smart keychain with an e ink display, powered by seed studio nrf52840
 
 # current state of the project
 
-
-the testbed for rev 0.0 is fried, and i have lost funding for the project. the code is done but untested, and the app is still a work in progress. rev 0.1 boards arrived, but i dont have the components to test them with nor do i have the funding to do so. 
+software is complete! it is untested.
+currently working on completing v3 of the stl. 
+i have rev 0.1 boards, but they do not have a seeed or epaper breakout board.
+currently have 10 of them.
+500mah battery has been ordered and is on the way.
+rev 0.0's seeed xiao finally died.
